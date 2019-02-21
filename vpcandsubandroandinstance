@@ -1,0 +1,202 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Resources": {
+        "MyVPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Ref": "VpcCidrBlock"
+                }
+            }
+        },
+        "PublicSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "MyVPC"
+                },
+                "CidrBlock": {
+                    "Ref": "PublicSubnetCidrBlock"
+                },
+                "MapPublicIpOnLaunch": "True"
+            }
+        },
+		"PrivateSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "MyVPC"
+                },
+                "CidrBlock": {
+                    "Ref": "PrivateSubnetCidrBlock"
+                }
+                
+            }
+        },
+        "IGW" : {
+            "Type" : "AWS::EC2::InternetGateway",
+            "Properties" : {}
+        },
+        "IgwAttachment" : {
+            "Type" : "AWS::EC2::VPCGatewayAttachment",
+            "Properties" : {
+                "VpcId" : { "Ref" : "MyVPC" },
+                "InternetGatewayId" : { "Ref" : "IGW" }
+            }
+        },
+        "PublicRouteTable" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+                "VpcId" : { "Ref" : "MyVPC" }
+            }
+        },
+        "PublicRoute" : {
+            "Type" : "AWS::EC2::Route",
+            "DependsOn" : "IGW",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "PublicRouteTable" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "GatewayId" : { "Ref" : "IGW" }
+            }
+        },
+        "PublicSubnetRouteAssociation": {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "PublicRouteTable" },
+             	"SubnetId" : { "Ref" : "PublicSubnet" }
+					
+				
+				}
+			},
+		"PrivateRouteTable" : {
+            "Type" : "AWS::EC2::RouteTable",
+            "Properties" : {
+                "VpcId" : { "Ref" : "MyVPC" }
+            }
+        },
+        "PrivateRoute" : {
+            "Type" : "AWS::EC2::Route",
+            "DependsOn" : "IGW",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "PrivateRouteTable" },
+                "DestinationCidrBlock" : "0.0.0.0/0",
+                "GatewayId" : { "Ref" : "IGW" }
+            }
+        },
+        "PrivateSubnetRouteAssociation": {
+            "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties" : {
+                "RouteTableId" : { "Ref" : "PrivateRouteTable" },
+             	"SubnetId" : { "Ref" : "PrivateSubnet" }
+					
+				
+				}
+			},
+        "InstanceSecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+				"GroupName": "Public Group",
+                "GroupDescription" : "Allow HTTP and SSH traffic to our host",
+                "VpcId" : {"Ref" : "MyVPC"},
+                "SecurityGroupIngress" : [
+                    {
+                        "IpProtocol" : "tcp",
+                        "FromPort" : "22",
+                        "ToPort" : "22",
+                        "CidrIp" : "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol" : "tcp",
+                        "FromPort" : "80",
+                        "ToPort" : "80",
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ],
+                "SecurityGroupEgress" : [
+                    {
+                        "IpProtocol" : -1,
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ]
+            }
+        },
+		
+        "MyEC2Instance" : {
+            "Type" : "AWS::EC2::Instance",
+            "Properties" : {
+                "ImageId" : "ami-0ad42f4f66f6c1cc9",
+                "KeyName" : { "Ref": "SSHKeyName"},
+                "SubnetId": {
+                    "Ref": "PublicSubnet"
+                },
+                "InstanceType": "t2.micro",
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "InstanceSecurityGroup"
+                    }
+                ]
+            }
+        },
+		"MySecondEC2Instance" : {
+            "Type" : "AWS::EC2::Instance",
+            "Properties" : {
+                "ImageId" : "ami-0ad42f4f66f6c1cc9",
+                "KeyName" : { "Ref": "SSHKeyName"},
+                "SubnetId": {
+                    "Ref": "PrivateSubnet"
+                },
+                "InstanceType": "t2.micro",
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "InstanceSecurityGroup"
+                    }
+                ]
+            }
+        }
+		
+	},
+	"Parameters": {
+        "VpcCidrBlock": {
+            "Description": "VPC CIDR Range (will be a /16 block)",
+            "Type": "String",
+            "Default": "10.0.0.0/16"
+		},
+        "PublicSubnetCidrBlock": {
+            "Description": "Public Subnet CIDR Range",
+            "Type": "String",
+            "Default": "10.0.1.0/24"
+		},
+		"PrivateSubnetCidrBlock": {
+            "Description": "Private Subnet CIDR Range",
+            "Type": "String",
+            "Default": "10.0.2.0/24"
+		},
+        "SSHKeyName": {
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription": "must be the name of an existing EC2 KeyPair."
+        }
+    },
+    "Outputs": {
+        "MyEC2InstancePublicIP": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "MyEC2Instance",
+                    "PublicIp"
+                ]
+            }
+        }
+    },
+	"Outputs": {
+        "MyEC2InstancePrivateIP": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "MySecondEC2Instance",
+                    "PrivateIp"
+                ]
+            }
+        }
+    }
+	
+	
+}
